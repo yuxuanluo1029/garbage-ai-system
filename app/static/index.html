@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>垃圾分类智能站</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <section id="auth-screen" class="auth-screen">
+      <div class="auth-decor auth-decor-left"></div>
+      <div class="auth-decor auth-decor-right"></div>
+      <article class="auth-card">
+        <p class="auth-kicker">Garbage Sorting Portal</p>
+        <h1>垃圾分类智能站</h1>
+        <p class="auth-copy">
+          先登录或注册账号，再进入垃圾识别、个性推荐和分类博客栏目。账号会保存你的偏好标签、识别历史和互动记录。
+        </p>
+
+        <div class="auth-tabs">
+          <button id="login-tab" class="auth-tab is-active" type="button">登录</button>
+          <button id="register-tab" class="auth-tab" type="button">注册</button>
+        </div>
+
+        <label class="field">
+          <span>用户名</span>
+          <input id="auth-username" class="text-input" type="text" placeholder="请输入用户名" />
+        </label>
+        <label class="field">
+          <span>密码</span>
+          <input id="auth-password" class="text-input" type="password" placeholder="请输入至少 6 位密码" />
+        </label>
+        <label class="checkbox-line">
+          <input id="remember-session" type="checkbox" checked />
+          <span>保持登录并记住当前账号</span>
+        </label>
+        <button id="auth-submit" class="primary-button wide-button" type="button">立即登录</button>
+        <p id="auth-hint" class="helper-text">
+          注册后将自动进入网站。密码会以加密摘要形式保存，不会明文存储。
+        </p>
+      </article>
+    </section>
+
+    <div id="site-shell" class="site-shell hidden">
+      <header class="topbar">
+        <div class="topbar-brand">
+          <p class="topbar-kicker">Campus Garbage Vision</p>
+          <h1>垃圾分类智能站</h1>
+        </div>
+
+        <nav class="channel-nav">
+          <button class="channel-button is-active" data-section="detector" type="button">垃圾识别</button>
+          <button class="channel-button" data-section="recommend" type="button">个性推荐</button>
+          <button class="channel-button" data-section="blog" type="button">分类博客</button>
+          <button class="channel-button" data-section="profile" type="button">个人信息</button>
+        </nav>
+
+        <div class="topbar-user">
+          <button id="profile-shortcut" class="topbar-avatar" type="button" title="进入个人信息页">未</button>
+          <div class="user-summary">
+            <strong id="topbar-username">未登录</strong>
+            <span id="topbar-profile">偏好 0 项 · 历史 0 条 · 地区未设置</span>
+          </div>
+          <button id="logout-button" class="secondary-button topbar-logout" type="button">退出</button>
+        </div>
+      </header>
+
+      <main class="tab-panels">
+        <section id="detector-panel" class="tab-panel is-active">
+          <section class="hero-panel">
+            <div>
+              <p class="eyebrow">Waste Detector</p>
+              <h2>垃圾识别栏目</h2>
+              <p class="hero-desc">
+                这个栏目专门用于垃圾图片识别和智能分析。上传图片后，系统会输出分类结果、检测明细和投放建议。
+              </p>
+            </div>
+            <div class="hero-side-info">
+              <div class="info-chip">识别模型：四类垃圾检测</div>
+              <div class="info-chip">智能体：分类问答辅助</div>
+            </div>
+          </section>
+
+          <div class="detector-grid">
+            <article class="panel upload-panel">
+              <label class="dropzone" for="image-input">
+                <input id="image-input" type="file" accept="image/*" hidden />
+                <span class="drop-title">点击或拖拽上传垃圾图片</span>
+                <span class="drop-subtitle">
+                  建议上传单张主体清晰、背景干净、距离较近的图片，方便系统稳定识别垃圾类别。
+                </span>
+              </label>
+              <div class="actions">
+                <button id="run-button" class="primary-button" type="button">开始识别</button>
+              </div>
+              <p id="status-text" class="status-text">等待上传图片</p>
+            </article>
+
+            <article class="panel visual-panel">
+              <div class="image-grid">
+                <figure class="image-card">
+                  <figcaption>原始图像</figcaption>
+                  <img id="source-image" alt="原始图像预览" />
+                </figure>
+                <figure class="image-card">
+                  <figcaption>识别结果</figcaption>
+                  <img id="annotated-image" alt="识别结果预览" />
+                </figure>
+              </div>
+            </article>
+          </div>
+
+          <div class="detector-grid lower-grid">
+            <article class="panel summary-panel">
+              <p class="mini-title">综合判断</p>
+              <h3 id="summary-label">待识别</h3>
+              <div class="badge-row">
+                <div id="summary-category" class="summary-tag">待确认</div>
+                <div id="recognition-badge" class="model-badge badge-muted">识别链路未启动</div>
+              </div>
+              <p id="summary-reason" class="summary-reason">
+                识别完成后，这里会显示系统判断、识别链路和原因说明。
+              </p>
+              <div id="model-badge" class="model-badge">模型未加载</div>
+            </article>
+
+            <article class="panel detections-panel">
+              <div class="panel-head">
+                <div>
+                  <p class="mini-title">Detections</p>
+                  <h3>目标明细</h3>
+                </div>
+              </div>
+              <div id="detections-list" class="detections-list"></div>
+            </article>
+          </div>
+
+          <article class="panel agent-panel">
+            <div class="panel-head">
+              <div>
+                <p class="mini-title">Assistant</p>
+                <h3>垃圾分类智能体</h3>
+              </div>
+              <button id="analyze-button" class="secondary-button" type="button">生成分析</button>
+            </div>
+            <textarea id="question-input" rows="3">请分析这张图片中的垃圾，并告诉我应该如何分类、投放和处理。</textarea>
+            <div id="analysis-output" class="analysis-output">
+              系统会根据识别结果和你的问题生成垃圾分类分析说明。
+            </div>
+          </article>
+        </section>
+
+        <section id="recommend-panel" class="tab-panel">
+          <section class="hero-panel">
+            <div>
+              <p class="eyebrow">Recommendation Center</p>
+              <h2>个性推荐栏目</h2>
+              <p class="hero-desc">
+                这里的推荐视频全部经过重新筛选，只保留垃圾分类、厨余处理、可回收物、有害垃圾和分类处理流程相关内容。
+              </p>
+            </div>
+            <div class="hero-side-info">
+              <div class="info-chip">来源：Bilibili 已核实视频</div>
+              <div class="info-chip">排序：偏好 + 识别历史 + 点赞收藏</div>
+            </div>
+          </section>
+
+          <div class="recommend-grid">
+            <article class="panel preference-panel">
+              <div class="panel-head">
+                <div>
+                  <p class="mini-title">Preference Tags</p>
+                  <h3>偏好标签</h3>
+                </div>
+                <button id="save-topics-button" class="secondary-button" type="button">保存偏好</button>
+              </div>
+              <p class="helper-text">
+                可选择你最想重点看的垃圾分类方向，系统会据此调整栏目推荐顺序。
+              </p>
+              <div id="topic-chip-group" class="chip-row chip-group"></div>
+            </article>
+
+            <article class="panel featured-video-panel">
+              <div id="featured-video-cover" class="video-cover"></div>
+              <div class="video-meta">
+                <span id="featured-video-platform" class="video-platform">垃圾分类视频</span>
+                <h3 id="featured-video-title">等待加载推荐</h3>
+                <p id="featured-video-desc" class="helper-text">
+                  登录后系统会结合你的偏好标签和识别历史，生成更贴近垃圾分类学习需求的推荐结果。
+                </p>
+                <div id="featured-video-tags" class="chip-row"></div>
+                <p id="featured-video-reason" class="recommend-reason">围绕垃圾分类精选推荐。</p>
+                <div class="video-actions">
+                  <button id="featured-open-button" class="primary-button" type="button">打开视频</button>
+                  <button id="featured-like-button" class="secondary-button" type="button">点赞</button>
+                  <button id="featured-favorite-button" class="secondary-button" type="button">收藏</button>
+                  <button id="featured-comment-button" class="secondary-button" type="button">评论</button>
+                </div>
+                <div class="comment-form video-comment-form">
+                  <input id="featured-video-comment-input" class="text-input comment-input" type="text" placeholder="写下你对这条垃圾分类视频的看法" />
+                </div>
+                <div id="featured-video-comments" class="comment-list"></div>
+              </div>
+            </article>
+          </div>
+
+          <article class="panel video-list-panel">
+            <div class="panel-head">
+              <div>
+                <p class="mini-title">Video Library</p>
+                <h3>垃圾分类视频列表</h3>
+              </div>
+              <span id="recommend-count" class="state-badge">0 条视频</span>
+            </div>
+            <div id="video-list" class="video-list"></div>
+          </article>
+        </section>
+
+        <section id="blog-panel" class="tab-panel">
+          <section class="hero-panel">
+            <div>
+              <p class="eyebrow">Sorting Blog</p>
+              <h2>分类博客栏目</h2>
+              <p class="hero-desc">
+                这里只讨论垃圾分类相关内容。你可以按栏目筛选文章，也可以发布自己的校园分类观察和识别心得。
+              </p>
+            </div>
+            <div class="hero-side-info">
+              <div class="info-chip">主题限定：垃圾分类</div>
+              <div class="info-chip">支持发帖、点赞、评论</div>
+            </div>
+          </section>
+
+          <div class="blog-grid">
+            <article class="panel blog-compose-panel">
+              <div class="panel-head">
+                <div>
+                  <p class="mini-title">Compose</p>
+                  <h3>发布垃圾分类文章</h3>
+                </div>
+              </div>
+              <label class="field">
+                <span>标题</span>
+                <input id="blog-title" class="text-input" type="text" placeholder="例如：宿舍垃圾分类最容易混投的三类物品" />
+              </label>
+              <label class="field">
+                <span>栏目</span>
+                <select id="blog-column" class="text-input"></select>
+              </label>
+              <label class="field">
+                <span>内容</span>
+                <textarea id="blog-content" class="text-input textarea-input" rows="7" placeholder="请围绕垃圾分类、回收、厨余处理、有害垃圾等主题撰写内容。"></textarea>
+              </label>
+              <div class="compose-actions">
+                <label class="upload-inline">
+                  <input id="blog-image-input" type="file" accept="image/*" hidden />
+                  <span>上传配图</span>
+                </label>
+                <button id="publish-blog-button" class="primary-button" type="button">发布文章</button>
+              </div>
+              <div id="blog-image-preview" class="blog-image-preview hidden"></div>
+            </article>
+
+            <article class="panel blog-stream-panel">
+              <div class="panel-head">
+                <div>
+                  <p class="mini-title">Feed</p>
+                  <h3>垃圾分类博客流</h3>
+                </div>
+                <input id="blog-search" class="text-input search-input" type="text" placeholder="搜索标题或内容关键词" />
+              </div>
+              <div id="blog-filter-row" class="chip-row chip-group"></div>
+              <div id="blog-post-list" class="blog-post-list"></div>
+            </article>
+          </div>
+        </section>
+
+        <section id="profile-panel" class="tab-panel">
+          <section class="hero-panel">
+            <div>
+              <p class="eyebrow">Profile Center</p>
+              <h2>个人信息栏目</h2>
+              <p class="hero-desc">
+                在这里可以管理头像和地区，回看自己点赞和评论过的垃圾分类视频，以及自己发布过的博客内容。
+              </p>
+            </div>
+            <div class="hero-side-info">
+              <div class="info-chip">资料同步：头像 + 地区</div>
+              <div class="info-chip">记录汇总：视频互动 + 博客发表</div>
+            </div>
+          </section>
+
+          <div class="profile-grid">
+            <article class="panel profile-base-panel">
+              <div class="panel-head">
+                <div>
+                  <p class="mini-title">Identity</p>
+                  <h3>基础资料</h3>
+                </div>
+              </div>
+              <div class="profile-base-layout">
+                <div class="profile-avatar-stack">
+                  <div id="profile-avatar-preview" class="profile-avatar">未</div>
+                  <label class="upload-inline">
+                    <input id="profile-avatar-input" type="file" accept="image/*" hidden />
+                    <span>上传头像</span>
+                  </label>
+                </div>
+                <div class="profile-form">
+                  <label class="field">
+                    <span>用户名</span>
+                    <input id="profile-username" class="text-input" type="text" disabled />
+                  </label>
+                  <label class="field">
+                    <span>地区</span>
+                    <input id="profile-region" class="text-input" type="text" placeholder="例如：浙江·杭州" />
+                  </label>
+                  <button id="profile-save-button" class="primary-button" type="button">保存资料</button>
+                </div>
+              </div>
+            </article>
+
+            <article class="panel profile-stats-panel">
+              <div class="panel-head">
+                <div>
+                  <p class="mini-title">Overview</p>
+                  <h3>个人记录概览</h3>
+                </div>
+              </div>
+              <div class="profile-stat-list">
+                <div class="profile-stat-card">
+                  <span>点赞视频</span>
+                  <strong id="profile-liked-count">0</strong>
+                </div>
+                <div class="profile-stat-card">
+                  <span>评论视频</span>
+                  <strong id="profile-commented-count">0</strong>
+                </div>
+                <div class="profile-stat-card">
+                  <span>发布博客</span>
+                  <strong id="profile-post-count">0</strong>
+                </div>
+              </div>
+              <p id="profile-summary" class="helper-text">
+                登录后系统会在这里汇总你的垃圾分类偏好、互动和发布记录。
+              </p>
+            </article>
+          </div>
+
+          <div class="profile-content-grid">
+            <article class="panel">
+              <div class="panel-head">
+                <div>
+                  <p class="mini-title">Liked Videos</p>
+                  <h3>我点赞过的视频</h3>
+                </div>
+              </div>
+              <div id="profile-liked-videos" class="profile-card-list"></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-head">
+                <div>
+                  <p class="mini-title">Commented Videos</p>
+                  <h3>我评论过的视频</h3>
+                </div>
+              </div>
+              <div id="profile-commented-videos" class="profile-card-list"></div>
+            </article>
+          </div>
+
+          <article class="panel">
+            <div class="panel-head">
+              <div>
+                <p class="mini-title">My Blog</p>
+                <h3>我发布过的博客</h3>
+              </div>
+            </div>
+            <div id="profile-blog-posts" class="profile-blog-list"></div>
+          </article>
+        </section>
+      </main>
+    </div>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

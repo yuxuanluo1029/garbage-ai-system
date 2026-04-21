@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: campus-garbage-vision
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: APP_TITLE
+        value: EcoSort AI
+      - key: APP_HOST
+        value: 0.0.0.0
+      - key: VISION_BACKEND
+        value: ultralytics
+      - key: VISION_MODEL_NAME
+        value: garbage4_best.pt
+      - key: VISION_CONFIDENCE
+        value: "0.25"
+      - key: VISION_IMGSZ
+        value: "640"
+      - key: UPLOAD_DIR
+        value: ./uploads
+      - key: ARTIFACT_DIR
+        value: ./artifacts
+      - key: LLM_API_BASE
+        value: https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions
+      - key: LLM_MODEL
+        value: qwen-plus
+      - key: LLM_API_KEY
+        sync: false
