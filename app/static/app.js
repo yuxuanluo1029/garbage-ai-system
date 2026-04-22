@@ -148,6 +148,41 @@ function resetUserState() {
   state.profileAvatarDataUrl = "";
 }
 
+function resetWorkspaceState() {
+  state.selectedTopics = new Set();
+  state.blogFilter = "全部";
+  state.blogImageDataUrl = "";
+  state.profileAvatarDataUrl = "";
+  state.latestPrediction = null;
+  if (blogSearchInput) {
+    blogSearchInput.value = "";
+  }
+  if (blogTitleInput) {
+    blogTitleInput.value = "";
+  }
+  if (blogContentInput) {
+    blogContentInput.value = "";
+  }
+  if (blogImagePreview) {
+    blogImagePreview.classList.add("hidden");
+    blogImagePreview.innerHTML = "";
+  }
+}
+
+async function ensureSignedIn(message) {
+  if (state.currentUser && state.token) {
+    return true;
+  }
+  if (state.token) {
+    await loadCurrentUser();
+    if (state.currentUser) {
+      return true;
+    }
+  }
+  alert(message);
+  return false;
+}
+
 async function apiFetch(path, options = {}) {
   const headers = new Headers(options.headers || {});
   if (options.includeAuth !== false && state.token) {
@@ -171,6 +206,11 @@ async function apiFetch(path, options = {}) {
   }
 
   if (!response.ok) {
+    if (response.status === 401) {
+      clearToken();
+      resetUserState();
+      renderShellState();
+    }
     throw new Error(payload.detail || "请求失败");
   }
   return payload;
@@ -195,6 +235,12 @@ function setActiveSection(section) {
   tabPanels.forEach((panel) => {
     panel.classList.toggle("is-active", panel.id === `${section}-panel`);
   });
+  if (section === "recommend" && state.currentUser) {
+    void loadRecommendations();
+  }
+  if (section === "blog" && state.currentUser) {
+    void loadBlogPosts();
+  }
   if (section === "profile" && state.currentUser) {
     void loadDashboard();
   }
@@ -242,6 +288,7 @@ async function loadCurrentUser() {
   } catch (error) {
     clearToken();
     resetUserState();
+    resetWorkspaceState();
   }
   renderShellState();
 }
@@ -266,6 +313,7 @@ async function submitAuth() {
     });
     persistToken(payload.token, rememberSessionInput.checked);
     localStorage.setItem(REMEMBERED_USERNAME_KEY, username);
+    resetWorkspaceState();
     state.currentUser = payload.user;
     state.accountProfile = payload.profile;
     renderShellState();
@@ -287,7 +335,10 @@ async function handleLogout() {
   } finally {
     clearToken();
     resetUserState();
-    state.latestPrediction = null;
+    resetWorkspaceState();
+    state.blogPosts = [];
+    state.recommendations = { topics: [], videos: [], profile: emptyProfile() };
+    setActiveSection("detector");
     renderShellState();
     logoutButton.disabled = false;
   }
@@ -512,8 +563,7 @@ async function loadRecommendations() {
 }
 
 async function saveTopics() {
-  if (!state.currentUser) {
-    alert("请先登录后保存个性推荐偏好。");
+  if (!(await ensureSignedIn("请先登录后保存个性推荐偏好。"))) {
     return;
   }
   saveTopicsButton.disabled = true;
@@ -537,8 +587,7 @@ async function saveTopics() {
 
 async function interactVideo(videoId, action) {
   if (!videoId) return;
-  if (!state.currentUser) {
-    alert("请先登录后再记录视频互动。");
+  if (!(await ensureSignedIn("请先登录后再记录视频互动。"))) {
     return;
   }
 
@@ -559,8 +608,10 @@ async function interactVideo(videoId, action) {
 }
 
 async function submitVideoComment(videoId, inputElement) {
-  if (!videoId || !state.currentUser) {
-    alert("请先登录后再评论视频。");
+  if (!videoId) {
+    return;
+  }
+  if (!(await ensureSignedIn("请先登录后再评论视频。"))) {
     return;
   }
   const content = inputElement?.value?.trim() || "";
@@ -868,13 +919,18 @@ async function handleBlogImagePick() {
 }
 
 async function publishBlog() {
-  if (!state.currentUser) {
-    alert("请先登录后发布博客。");
+  if (!(await ensureSignedIn("请先登录后发布博客。"))) {
     return;
   }
 
   publishBlogButton.disabled = true;
   try {
+    if (!blogColumnSelect.value) {
+      await loadBlogPosts();
+    }
+    if (!blogColumnSelect.value) {
+      throw new Error("博客栏目还没有加载完成，请稍后再试。");
+    }
     const payload = await apiFetch("/api/blog/posts", {
       method: "POST",
       jsonBody: {
@@ -886,6 +942,8 @@ async function publishBlog() {
     });
     state.blogColumns = payload.columns || [];
     state.blogPosts = payload.posts || [];
+    state.blogFilter = "全部";
+    blogSearchInput.value = "";
     blogTitleInput.value = "";
     blogContentInput.value = "";
     state.blogImageDataUrl = "";
@@ -902,8 +960,7 @@ async function publishBlog() {
 }
 
 async function toggleBlogLike(postId) {
-  if (!state.currentUser) {
-    alert("请先登录后点赞博客。");
+  if (!(await ensureSignedIn("请先登录后点赞博客。"))) {
     return;
   }
   try {
@@ -921,8 +978,7 @@ async function toggleBlogLike(postId) {
 }
 
 async function submitComment(postId) {
-  if (!state.currentUser) {
-    alert("请先登录后发表评论。");
+  if (!(await ensureSignedIn("请先登录后发表评论。"))) {
     return;
   }
   const input = document.querySelector(`[data-comment-input="${postId}"]`);
@@ -938,6 +994,9 @@ async function submitComment(postId) {
     });
     state.blogColumns = payload.columns || [];
     state.blogPosts = payload.posts || [];
+    if (input) {
+      input.value = "";
+    }
     renderBlogPosts();
     await loadDashboard();
   } catch (error) {
@@ -946,7 +1005,7 @@ async function submitComment(postId) {
 }
 
 async function deletePost(postId) {
-  if (!state.currentUser) return;
+  if (!(await ensureSignedIn("请先登录后删除博客。"))) return;
   if (!window.confirm("确认删除这篇垃圾分类博客吗？")) return;
   try {
     const payload = await apiFetch(`/api/blog/posts/${postId}`, { method: "DELETE" });
@@ -1090,8 +1149,7 @@ async function handleProfileAvatarPick() {
 }
 
 async function saveProfile() {
-  if (!state.currentUser) {
-    alert("请先登录后再保存资料。");
+  if (!(await ensureSignedIn("请先登录后再保存资料。"))) {
     return;
   }
   profileSaveButton.disabled = true;

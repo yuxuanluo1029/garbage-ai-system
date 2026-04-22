@@ -816,4 +816,4 @@ class SiteStore:
         return self.list_blog_posts()
 
 
-site_store = SiteStore(settings.artifact_dir / "data" / "ecosort_site.db")
+site_store = SiteStore(settings.database_path)

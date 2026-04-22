@@ -38,6 +38,10 @@ class Settings:
 
     upload_dir: Path = resolve_project_path(os.getenv("UPLOAD_DIR", "./uploads"), "./uploads")
     artifact_dir: Path = resolve_project_path(os.getenv("ARTIFACT_DIR", "./artifacts"), "./artifacts")
+    database_path: Path = resolve_project_path(
+        os.getenv("DATABASE_PATH", "./artifacts/data/ecosort_site.db"),
+        "./artifacts/data/ecosort_site.db",
+    )
 
     llm_api_base: str = os.getenv("LLM_API_BASE", "https://api.openai.com/v1/chat/completions").strip()
     llm_api_key: str = os.getenv("LLM_API_KEY", "").strip()

@@ -67,14 +67,10 @@ def _validate_blog_image(image_data_url: str) -> None:
     except (ValueError, binascii.Error) as exc:
         raise HTTPException(status_code=400, detail="博客配图无法解析。") from exc
 
-    suffix = ".png"
-    target = save_upload(raw, suffix)
-    detector = get_detector()
-    prediction = detector.predict(target)
-    if prediction.summary_category == "待确认":
+    if len(raw) > 3 * 1024 * 1024:
         raise HTTPException(
             status_code=400,
-            detail="博客配图需要与垃圾分类主题相关，请上传可识别的垃圾分类图片。",
+            detail="博客配图过大，请压缩到 3MB 以内后再上传。",
         )
 
 

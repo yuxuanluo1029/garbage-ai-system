@@ -842,7 +842,6 @@ button:disabled {
 .profile-link:hover {
   text-decoration: underline;
 }
-}
 
 .upload-inline {
   display: inline-flex;
@@ -903,6 +902,134 @@ button:disabled {
 
 .comment-input {
   flex: 1 1 220px;
+}
+
+.auth-screen {
+  background:
+    radial-gradient(circle at 12% 16%, rgba(149, 213, 178, 0.34), transparent 25%),
+    radial-gradient(circle at 86% 18%, rgba(64, 145, 108, 0.28), transparent 30%),
+    linear-gradient(145deg, #082d20 0%, #124734 46%, #e7dfc9 100%);
+}
+
+.auth-card {
+  border-color: rgba(255, 255, 255, 0.42);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(246, 251, 242, 0.86)),
+    radial-gradient(circle at top right, rgba(31, 122, 77, 0.18), transparent 48%);
+  box-shadow: 0 28px 80px rgba(5, 42, 26, 0.34);
+}
+
+.auth-card h1 {
+  color: #0b4a2d;
+}
+
+.auth-tabs {
+  background: rgba(31, 122, 77, 0.1);
+}
+
+.auth-tab {
+  color: var(--accent-strong);
+}
+
+.auth-tab.is-active {
+  background: linear-gradient(135deg, #0d5d38, #2f9d63);
+}
+
+.text-input:focus,
+#question-input:focus {
+  border-color: rgba(31, 122, 77, 0.46);
+  box-shadow: 0 0 0 4px rgba(31, 122, 77, 0.12);
+  outline: none;
+}
+
+.topbar {
+  position: sticky;
+  top: 12px;
+  z-index: 20;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background:
+    linear-gradient(105deg, rgba(10, 71, 45, 0.98), rgba(30, 122, 77, 0.96) 48%, rgba(72, 176, 113, 0.94)),
+    radial-gradient(circle at 92% 20%, rgba(255, 255, 255, 0.2), transparent 26%);
+}
+
+.channel-button {
+  min-width: 112px;
+}
+
+.channel-button:hover,
+.channel-button.is-active {
+  background: rgba(255, 255, 255, 0.26);
+}
+
+.panel,
+.hero-panel {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.panel:hover,
+.hero-panel:hover {
+  transform: translateY(-2px);
+  border-color: rgba(31, 122, 77, 0.2);
+  box-shadow: 0 26px 70px rgba(28, 51, 36, 0.16);
+}
+
+.hero-panel {
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(243, 250, 239, 0.88)),
+    radial-gradient(circle at 100% 0%, rgba(47, 157, 99, 0.18), transparent 38%);
+}
+
+.hero-panel::after {
+  content: "";
+  position: absolute;
+  right: -70px;
+  top: -90px;
+  width: 230px;
+  height: 230px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(31, 122, 77, 0.2), transparent 65%);
+  pointer-events: none;
+}
+
+.blog-compose-panel {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(245, 251, 241, 0.9)),
+    radial-gradient(circle at bottom left, rgba(31, 122, 77, 0.12), transparent 40%);
+}
+
+.blog-post-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.blog-post-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 6px;
+  background: linear-gradient(180deg, #1f7a4d, #9dc88d);
+}
+
+.blog-post-card,
+.video-card,
+.profile-video-card,
+.profile-blog-card {
+  box-shadow: 0 14px 34px rgba(38, 58, 42, 0.08);
+}
+
+.comment-card,
+.video-comment-card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(246, 250, 244, 0.78));
+}
+
+.primary-button {
+  box-shadow: 0 12px 24px rgba(31, 122, 77, 0.22);
+}
+
+.primary-button:hover {
+  background: linear-gradient(135deg, #0d5d38, #36a96b);
 }
 
 @media (max-width: 1100px) {
