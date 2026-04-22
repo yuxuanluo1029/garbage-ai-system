@@ -1,6 +1,11 @@
 const LOCAL_TOKEN_KEY = "ecosort.auth.token";
 const SESSION_TOKEN_KEY = "ecosort.auth.session";
 const REMEMBERED_USERNAME_KEY = "ecosort.auth.username";
+const LOCAL_USER_KEY = "ecosort.auth.user";
+const LOCAL_PROFILE_KEY = "ecosort.auth.profile";
+const SESSION_USER_KEY = "ecosort.auth.session_user";
+const SESSION_PROFILE_KEY = "ecosort.auth.session_profile";
+const BLOG_IMAGE_MARKER = "[[博客配图]]";
 
 const emptyProfile = () => ({
   preferred_topics: [],
@@ -124,6 +129,55 @@ function setStatus(text) {
   statusText.textContent = text;
 }
 
+function readJsonStorage(storage, key, fallback = null) {
+  try {
+    const raw = storage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch (error) {
+    storage.removeItem(key);
+    return fallback;
+  }
+}
+
+function clearAuthSnapshot() {
+  localStorage.removeItem(LOCAL_USER_KEY);
+  localStorage.removeItem(LOCAL_PROFILE_KEY);
+  sessionStorage.removeItem(SESSION_USER_KEY);
+  sessionStorage.removeItem(SESSION_PROFILE_KEY);
+}
+
+function persistAuthSnapshot(user, profile, remember) {
+  const target = remember ? localStorage : sessionStorage;
+  const other = remember ? sessionStorage : localStorage;
+  target.setItem(remember ? LOCAL_USER_KEY : SESSION_USER_KEY, JSON.stringify(user));
+  target.setItem(remember ? LOCAL_PROFILE_KEY : SESSION_PROFILE_KEY, JSON.stringify(profile || emptyProfile()));
+  other.removeItem(remember ? SESSION_USER_KEY : LOCAL_USER_KEY);
+  other.removeItem(remember ? SESSION_PROFILE_KEY : LOCAL_PROFILE_KEY);
+}
+
+function hydrateCachedAccount() {
+  if (!state.token) {
+    clearAuthSnapshot();
+    return;
+  }
+
+  const user =
+    readJsonStorage(localStorage, LOCAL_USER_KEY) || readJsonStorage(sessionStorage, SESSION_USER_KEY);
+  const profile =
+    readJsonStorage(localStorage, LOCAL_PROFILE_KEY, null) ||
+    readJsonStorage(sessionStorage, SESSION_PROFILE_KEY, null) ||
+    emptyProfile();
+
+  if (user?.id) {
+    state.currentUser = user;
+    state.accountProfile = { ...emptyProfile(), ...profile };
+  }
+}
+
+function tokenIsRemembered() {
+  return Boolean(state.token && localStorage.getItem(LOCAL_TOKEN_KEY) === state.token);
+}
+
 function persistToken(token, remember) {
   state.token = token;
   if (remember) {
@@ -139,6 +193,7 @@ function clearToken() {
   state.token = "";
   localStorage.removeItem(LOCAL_TOKEN_KEY);
   sessionStorage.removeItem(SESSION_TOKEN_KEY);
+  clearAuthSnapshot();
 }
 
 function resetUserState() {
@@ -198,11 +253,12 @@ async function apiFetch(path, options = {}) {
     body: options.jsonBody !== undefined ? JSON.stringify(options.jsonBody) : options.body,
   });
 
+  const rawText = await response.text();
   let payload = {};
   try {
-    payload = await response.json();
+    payload = rawText ? JSON.parse(rawText) : {};
   } catch (error) {
-    payload = {};
+    payload = { detail: rawText ? rawText.slice(0, 180) : "请求失败" };
   }
 
   if (!response.ok) {
@@ -285,6 +341,7 @@ async function loadCurrentUser() {
     const payload = await apiFetch("/api/auth/me");
     state.currentUser = payload.user;
     state.accountProfile = payload.profile;
+    persistAuthSnapshot(payload.user, payload.profile, tokenIsRemembered());
   } catch (error) {
     clearToken();
     resetUserState();
@@ -312,6 +369,7 @@ async function submitAuth() {
       jsonBody: { username, password },
     });
     persistToken(payload.token, rememberSessionInput.checked);
+    persistAuthSnapshot(payload.user, payload.profile, rememberSessionInput.checked);
     localStorage.setItem(REMEMBERED_USERNAME_KEY, username);
     resetWorkspaceState();
     state.currentUser = payload.user;
@@ -320,7 +378,11 @@ async function submitAuth() {
     setActiveSection("detector");
     await Promise.all([loadRecommendations(), loadBlogPosts(), loadDashboard()]);
   } catch (error) {
-    authHint.textContent = error.message;
+    const renderHint =
+      state.authMode === "login" && /用户名或密码/.test(error.message)
+        ? " 如果这是 Render 重新部署前注册的账号，免费实例的本地数据库可能已经被重置，需要重新注册；要长期保留账号需要给 Render 绑定持久磁盘。"
+        : "";
+    authHint.textContent = `${error.message}${renderHint}`;
   } finally {
     authSubmitButton.disabled = false;
   }
@@ -398,6 +460,69 @@ function buildCommentAvatar(comment) {
     return `<span class="comment-avatar"><img src="${comment.author_avatar_url}" alt="${escapeHtml(comment.author_name)}" /></span>`;
   }
   return `<span class="comment-avatar">${escapeHtml(String(comment.author_name || "U").slice(0, 1).toUpperCase())}</span>`;
+}
+
+function buildInitialAvatar(name, className = "comment-avatar") {
+  return `<span class="${className}">${escapeHtml(String(name || "U").slice(0, 1).toUpperCase())}</span>`;
+}
+
+function insertTextAtCursor(textarea, text) {
+  const start = textarea.selectionStart ?? textarea.value.length;
+  const end = textarea.selectionEnd ?? textarea.value.length;
+  const before = textarea.value.slice(0, start);
+  const after = textarea.value.slice(end);
+  const prefix = before && !before.endsWith("\n") ? "\n\n" : "";
+  const suffix = after && !after.startsWith("\n") ? "\n\n" : "";
+  textarea.value = `${before}${prefix}${text}${suffix}${after}`;
+  const cursor = before.length + prefix.length + text.length;
+  textarea.focus();
+  textarea.setSelectionRange(cursor, cursor);
+}
+
+function ensureBlogImageMarker() {
+  if (!state.blogImageDataUrl) {
+    return;
+  }
+  if (!blogContentInput.value.includes(BLOG_IMAGE_MARKER)) {
+    insertTextAtCursor(blogContentInput, BLOG_IMAGE_MARKER);
+  }
+}
+
+function renderInlineBlogImage(post) {
+  if (!post.image_data_url) {
+    return "";
+  }
+  return `
+    <figure class="blog-inline-image">
+      <img src="${post.image_data_url}" alt="${escapeHtml(post.title)}" />
+      <figcaption>正文配图</figcaption>
+    </figure>
+  `;
+}
+
+function renderBlogBody(post) {
+  const content = String(post.content || "");
+  const imageHtml = renderInlineBlogImage(post);
+  const parts = content.split(BLOG_IMAGE_MARKER);
+  let imageInserted = false;
+
+  const rendered = parts
+    .map((part, index) => {
+      const text = part.trim()
+        ? `<p class="blog-post-content">${escapeHtml(part.trim()).replaceAll("\n", "<br />")}</p>`
+        : "";
+      if (index >= parts.length - 1 || !imageHtml || imageInserted) {
+        return text;
+      }
+      imageInserted = true;
+      return `${text}${imageHtml}`;
+    })
+    .join("");
+
+  if (imageHtml && !imageInserted) {
+    return `${rendered}${imageHtml}`;
+  }
+  return rendered || "<p class='blog-post-content'>这篇文章还没有正文内容。</p>";
 }
 
 function buildVideoComments(comments, limit = 2) {
@@ -812,35 +937,49 @@ function renderBlogPosts() {
       return `
         <article class="blog-post-card">
           <div class="blog-post-top">
-            <div>
-              <div class="blog-post-title">${escapeHtml(post.title)}</div>
-              <div class="blog-meta">${escapeHtml(post.author_name)} · ${escapeHtml(post.column)} · ${new Date(post.created_at).toLocaleString("zh-CN")}</div>
+            <div class="blog-author-line">
+              ${buildInitialAvatar(post.author_name)}
+              <div>
+                <div class="blog-post-title">${escapeHtml(post.title)}</div>
+                <div class="blog-meta">${escapeHtml(post.author_name)} · ${new Date(post.created_at).toLocaleString("zh-CN")}</div>
+              </div>
             </div>
-            ${ownPost ? `<button type="button" class="blog-action is-danger delete-post-button" data-post-id="${escapeHtml(post.id)}">删除</button>` : ""}
+            <div class="blog-card-tools">
+              <span class="blog-column-pill">${escapeHtml(post.column)}</span>
+              ${ownPost ? `<button type="button" class="blog-action is-danger delete-post-button" data-post-id="${escapeHtml(post.id)}">删除</button>` : ""}
+            </div>
           </div>
-          <p class="blog-post-content">${escapeHtml(post.content)}</p>
-          ${post.image_data_url ? `<div class="blog-post-image"><img src="${post.image_data_url}" alt="${escapeHtml(post.title)}" /></div>` : ""}
+          <div class="blog-post-frame">
+            ${renderBlogBody(post)}
+          </div>
           <div class="blog-actions">
             <button type="button" class="blog-action like-post-button" data-post-id="${escapeHtml(post.id)}">${liked ? "已点赞" : "点赞"} ${post.liked_user_ids.length}</button>
             <span class="state-badge">评论 ${post.comments.length}</span>
           </div>
           <div class="comment-list">
-            ${post.comments
-              .map(
-                (comment) => `
-                  <div class="comment-card">
-                    <div class="comment-top">
-                      <strong>${escapeHtml(comment.author_name)}</strong>
-                      <span class="blog-meta">${new Date(comment.created_at).toLocaleString("zh-CN")}</span>
-                    </div>
-                    <div class="comment-content">${escapeHtml(comment.content)}</div>
-                  </div>
-                `,
-              )
-              .join("")}
+            ${
+              post.comments.length
+                ? post.comments
+                    .map(
+                      (comment) => `
+                        <div class="comment-card">
+                          ${buildInitialAvatar(comment.author_name)}
+                          <div class="comment-body">
+                            <div class="comment-top">
+                              <strong>${escapeHtml(comment.author_name)}</strong>
+                              <span class="blog-meta">${new Date(comment.created_at).toLocaleString("zh-CN")}</span>
+                            </div>
+                            <div class="comment-content">${escapeHtml(comment.content)}</div>
+                          </div>
+                        </div>
+                      `,
+                    )
+                    .join("")
+                : "<div class='empty-comment'>还没有评论，可以先说一句“写得不错”。</div>"
+            }
           </div>
           <div class="comment-form">
-            <input class="text-input comment-input" data-comment-input="${escapeHtml(post.id)}" type="text" placeholder="写一条垃圾分类相关评论" />
+            <input class="text-input comment-input" data-comment-input="${escapeHtml(post.id)}" type="text" placeholder="写评论，简短回复也可以" />
             <button type="button" class="primary-button comment-submit-button" data-post-id="${escapeHtml(post.id)}">发表评论</button>
           </div>
         </article>
@@ -898,22 +1037,53 @@ async function readFileAsDataUrl(file, options = {}) {
         resolve(rawDataUrl);
         return;
       }
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, width, height);
       ctx.drawImage(image, 0, 0, width, height);
-      resolve(canvas.toDataURL("image/jpeg", options.quality || 0.86));
+
+      const maxBytes = Number(options.maxBytes || 0);
+      let quality = Number(options.quality || 0.82);
+      let output = canvas.toDataURL("image/jpeg", quality);
+      while (maxBytes && estimateDataUrlBytes(output) > maxBytes && quality > 0.46) {
+        quality -= 0.08;
+        output = canvas.toDataURL("image/jpeg", quality);
+      }
+      resolve(output);
     };
     image.onerror = () => reject(new Error("图片解析失败"));
     image.src = rawDataUrl;
   });
 }
 
+function estimateDataUrlBytes(dataUrl) {
+  const base64 = String(dataUrl || "").split(",", 2)[1] || "";
+  return Math.ceil((base64.length * 3) / 4);
+}
+
 async function handleBlogImagePick() {
   const file = blogImageInput.files?.[0];
   if (!file) return;
   try {
-    state.blogImageDataUrl = await readFileAsDataUrl(file, { maxEdge: 1280, quality: 0.9 });
+    state.blogImageDataUrl = await readFileAsDataUrl(file, {
+      maxEdge: 900,
+      quality: 0.76,
+      maxBytes: 1.8 * 1024 * 1024,
+    });
+    const imageBytes = estimateDataUrlBytes(state.blogImageDataUrl);
+    if (imageBytes > 2.2 * 1024 * 1024) {
+      throw new Error("这张配图压缩后仍然偏大，请换一张更小的图片或截图后再上传。");
+    }
+    ensureBlogImageMarker();
     blogImagePreview.classList.remove("hidden");
-    blogImagePreview.innerHTML = `<img src="${state.blogImageDataUrl}" alt="博客配图预览" />`;
+    blogImagePreview.innerHTML = `
+      <img src="${state.blogImageDataUrl}" alt="博客配图预览" />
+      <div class="image-size-note">已自动压缩为 ${(imageBytes / 1024 / 1024).toFixed(2)} MB，并插入到正文当前位置。</div>
+    `;
   } catch (error) {
+    state.blogImageDataUrl = "";
+    blogImageInput.value = "";
+    blogImagePreview.classList.add("hidden");
+    blogImagePreview.innerHTML = "";
     alert(error.message);
   }
 }
@@ -931,6 +1101,7 @@ async function publishBlog() {
     if (!blogColumnSelect.value) {
       throw new Error("博客栏目还没有加载完成，请稍后再试。");
     }
+    ensureBlogImageMarker();
     const payload = await apiFetch("/api/blog/posts", {
       method: "POST",
       jsonBody: {
@@ -1096,7 +1267,7 @@ function renderDashboard() {
                 </div>
                 <button type="button" class="secondary-button profile-jump-blog-button" data-post-id="${escapeHtml(post.id)}">前往博客栏目</button>
               </div>
-              <p class="blog-post-content">${escapeHtml(post.content)}</p>
+              <div class="blog-post-frame compact-frame">${renderBlogBody(post)}</div>
             </div>
           `,
         )
@@ -1176,6 +1347,7 @@ async function saveProfile() {
 async function initialize() {
   setAuthMode("login");
   setActiveSection("detector");
+  hydrateCachedAccount();
   renderShellState();
   renderDashboard();
   await loadCurrentUser();

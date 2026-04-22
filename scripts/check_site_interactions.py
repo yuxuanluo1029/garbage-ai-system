@@ -49,12 +49,21 @@ def main() -> None:
     headers_b = {"Authorization": f"Bearer {user_b['token']}"}
 
     assert_ok(client.get("/api/auth/me", headers=headers_a), "restore A token")
-    assert_ok(
+    assert_ok(client.post("/api/auth/logout", headers=headers_a), "logout A")
+    login_a = assert_ok(
         client.post(
             "/api/auth/login",
             json={"username": f"ia_{suffix}", "password": "123456"},
         ),
-        "login A after register",
+        "login A after logout",
+    )
+    headers_a = {"Authorization": f"Bearer {login_a['token']}"}
+    assert_ok(client.get("/api/auth/me", headers=headers_a), "restore A login token")
+
+    blog_content = (
+        "这是一篇关于垃圾分类、可回收垃圾、厨余垃圾和校园投放互动的测试文章。\n"
+        "[[博客配图]]\n"
+        "图片应该出现在正文中间，而不是只能作为外部附件。"
     )
 
     created = assert_ok(
@@ -63,7 +72,7 @@ def main() -> None:
             headers=headers_a,
             json={
                 "title": "宿舍垃圾分类跨账号测试",
-                "content": "这是一篇关于垃圾分类、可回收垃圾、厨余垃圾和校园投放互动的测试文章。",
+                "content": blog_content,
                 "column": BLOG_COLUMNS[0],
                 "image_data_url": TINY_PNG_DATA_URL,
             },
@@ -71,6 +80,9 @@ def main() -> None:
         "A publish blog with image",
     )
     post_id = created["posts"][0]["id"]
+    created_post = next(post for post in created["posts"] if post["id"] == post_id)
+    if "[[博客配图]]" not in created_post["content"] or not created_post["image_data_url"]:
+        raise AssertionError("Blog inline image marker or image data was not saved")
 
     posts_for_b = assert_ok(client.get("/api/blog/posts", headers=headers_b), "B list blogs")
     if not any(post["id"] == post_id for post in posts_for_b["posts"]):
@@ -80,7 +92,7 @@ def main() -> None:
         client.post(
             f"/api/blog/posts/{post_id}/comments",
             headers=headers_b,
-            json={"content": "这条垃圾分类评论可以被其他账号看到"},
+            json={"content": "好"},
         ),
         "B comment A blog",
     )
@@ -101,7 +113,7 @@ def main() -> None:
         client.post(
             f"/api/recommendations/videos/{video_id}/comments",
             headers=headers_b,
-            json={"content": "这条垃圾分类视频讲得很清楚"},
+            json={"content": "好"},
         ),
         "B comment video",
     )

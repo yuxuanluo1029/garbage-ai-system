@@ -624,8 +624,8 @@ class SiteStore:
         safe_content = content.strip()
         if video_id not in VIDEO_LOOKUP:
             raise ValueError("要评论的视频不存在。")
-        if len(safe_content) < 2:
-            raise ValueError("评论至少需要 2 个字。")
+        if len(safe_content) < 1:
+            raise ValueError("请先输入评论内容。")
         if len(safe_content) > 160:
             raise ValueError("评论请控制在 160 个字以内。")
 
@@ -780,10 +780,10 @@ class SiteStore:
 
     def add_blog_comment(self, user_id: str, post_id: str, content: str) -> dict:
         safe_content = content.strip()
-        if len(safe_content) < 6:
-            raise ValueError("评论至少需要 6 个字。")
-        if not contains_theme_keyword(safe_content):
-            raise ValueError("评论内容也需要围绕垃圾分类主题展开。")
+        if len(safe_content) < 1:
+            raise ValueError("请先输入评论内容。")
+        if len(safe_content) > 160:
+            raise ValueError("评论请控制在 160 个字以内。")
 
         with self._lock:
             with self._connect() as connection:
